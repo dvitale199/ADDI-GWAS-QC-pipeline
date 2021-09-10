@@ -4,8 +4,10 @@ import subprocess
 import shutil
 import numpy as np
 import argparse
+import plotly.express as px
+import plotly
 
-from qc import shell_do, het_prune, callrate_prune, merge_genos, get_outlier_ranges, ancestry_prune, king_prune, report_outliers
+from qc import shell_do, het_prune, callrate_prune, merge_genos, get_outlier_ranges, ancestry_prune, king_prune, report_outliers, plot_3d
 
 parser = argparse.ArgumentParser(description='Arguments for Genotyping QC (data in Plink .bim/.bam/.fam format)')
 parser.add_argument('--geno', type=str, default='nope', help='Genotype: (string file path). Path to PLINK format genotype file, everything before the *.bed/bim/fam [default: nope].')
@@ -37,6 +39,37 @@ make_bed_cmd = f'plink2 --pfile {het_out} --make-bed --out {het_out}'
 shell_do(make_bed_cmd)
 
 ancestry = ancestry_prune(het_out, ref_path, ref_labels, ancestry_out, target_label=pop)
+
+# make plots for pcs
+total_pcs = pd.read_csv(f"{ancestry['output']['plink_out']}.pca.eigenvec", sep='\s+', header=None, names=['FID','IID','PC1','PC2','PC3','PC4','PC5','PC6','PC7','PC8','PC9','PC10'], dtype={'FID':str,'IID':str})
+labels = pd.read_csv(ref_labels,sep='\t', header=None, names=['FID','IID','label'])
+pcs_merge = total_pcs.merge(labels, on=['FID','IID'], how='left')
+pcs_merge.label.fillna('new', inplace=True)
+
+pc1_range = [pcs_merge.PC1.min(), pcs_merge.PC1.max()]
+pc2_range = [pcs_merge.PC2.min(), pcs_merge.PC2.max()]
+pc3_range = [pcs_merge.PC3.min(), pcs_merge.PC3.max()]
+
+# plot reference panel + new sample pcs
+plot_3d(pcs_merge, color='label', symbol=None, plot_out=f'{out_path}_total_pcs_plot', x='PC1', y='PC2', z='PC3', title='Reference Panel + New Sample PCs', x_range=pc1_range, y_range=pc2_range, z_range=pc3_range)
+
+new_pcs = pcs_merge.loc[pcs_merge.label == 'new']
+keep_samples = pd.read_csv(ancestry['output']['keep_samples'], sep='\t', dtype={'FID':str,'IID':str})
+keep_samples.loc[:,'keep'] = True
+new_pcs_keep = new_pcs.merge(keep_samples, how='left', on=['FID','IID'])
+new_pcs_keep.loc[:,'keep'] = np.where(new_pcs_keep.keep == True, new_pcs_keep.keep, False)
+
+# plot pcs for only new samples
+plot_3d(new_pcs_keep, color='keep', symbol=None, plot_out=f'{out_path}_new_sample_pcs_plot', x='PC1', y='PC2', z='PC3', title='New Sample PCs', x_range=pc1_range, y_range=pc2_range, z_range=pc3_range)
+
+eigenvals = pd.read_csv(f"{ancestry['output']['plink_out']}.pca.eigenval", header=None, names=['eigenval'])
+eigenvals.loc[:,'PC'] = [f'PC{x+1}' for x in range(len(eigenvals.eigenval))]
+
+fig = px.line(eigenvals, x='PC', y='eigenval')
+fig.write_image(f'{out_path}_scree_plot.png', width=1980, height=1080)
+fig.write_html(f'{out_path}_scree_plot.html')
+
+
 make_pgen_cmd = f'plink2 --bfile {ancestry_out} --make-pgen --out {ancestry_out}'
 
 shell_do(make_pgen_cmd)

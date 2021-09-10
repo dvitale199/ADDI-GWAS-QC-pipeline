@@ -4,6 +4,9 @@ import sys
 import shutil
 import pandas as pd
 import numpy as np
+import plotly.express as px
+import plotly
+
 
 
 def shell_do(command, log=False, return_log=False):
@@ -173,17 +176,22 @@ def get_outlier_ranges(pc_df, target_label):
 
     target_pc1 = pc_df.loc[pc_df.label==target_label,'PC1']
     target_pc2 = pc_df.loc[pc_df.label==target_label,'PC2']
+    target_pc3 = pc_df.loc[pc_df.label==target_label,'PC3']
 
     targetlowc1 = np.mean(target_pc1) - (6*np.std(target_pc1))
     targethighc1 = np.mean(target_pc1) + (6*np.std(target_pc1))
     targetlowc2 = np.mean(target_pc2) - (6*np.std(target_pc2))
     targethighc2 = np.mean(target_pc2) + (6*np.std(target_pc2))
+    targetlowc3 = np.mean(target_pc3) - (6*np.std(target_pc3))
+    targethighc3 = np.mean(target_pc3) + (6*np.std(target_pc3))
 
     out_dict = {
         'lowc1': targetlowc1,
         'highc1': targethighc1,
         'lowc2': targetlowc2,
-        'highc2': targethighc2
+        'highc2': targethighc2,
+        'lowc3': targetlowc3,
+        'highc3': targethighc3
     }
 
     return out_dict
@@ -191,10 +199,10 @@ def get_outlier_ranges(pc_df, target_label):
 def ancestry_prune(geno_path, ref_path, ref_labels, out_path, target_label):
     merge_genos(geno_path, ref_path, out_path)
 
-    plink_cmd1 = f"plink --bfile {out_path} --geno 0.01 --pca 4 --make-bed --out {out_path}.pca"
+    plink_cmd1 = f"plink --bfile {out_path} --geno 0.01 --pca 10 --make-bed --out {out_path}.pca"
     shell_do(plink_cmd1)
 
-    pcs = pd.read_csv(f'{out_path}.pca.eigenvec', sep='\s+', header=None, names=['FID','IID','PC1','PC2','PC3','PC4'], dtype={'FID':str,'IID':str})
+    pcs = pd.read_csv(f'{out_path}.pca.eigenvec', sep='\s+', header=None, names=['FID','IID','PC1','PC2','PC3','PC4','PC5','PC6','PC7','PC8','PC9','PC10'], dtype={'FID':str,'IID':str})
     fam = pd.read_csv(f'{geno_path}.fam', sep='\s+', header=None, usecols=[0,1], names=['FID','IID'], dtype={'FID':str,'IID':str})
     fam.loc[:,'label'] = 'new'
     ref_lab_df = pd.read_csv(f'{ref_labels}', sep='\t', header=None, names=['FID','IID','label'])
@@ -204,7 +212,7 @@ def ancestry_prune(geno_path, ref_path, ref_labels, out_path, target_label):
     outlier_ranges = get_outlier_ranges(ref_pcs_merge, target_label)
 
     fam_pcs = fam.merge(pcs, how='left', on=['FID','IID'])
-    fam_keep = fam_pcs.loc[(fam_pcs.PC1 >= outlier_ranges['lowc1']) & (fam_pcs.PC1 <= outlier_ranges['highc1']) & (fam_pcs.PC2 >= outlier_ranges['lowc2']) & (fam_pcs.PC2 <= outlier_ranges['highc2'])]
+    fam_keep = fam_pcs.loc[(fam_pcs.PC1 >= outlier_ranges['lowc1']) & (fam_pcs.PC1 <= outlier_ranges['highc1']) & (fam_pcs.PC2 >= outlier_ranges['lowc2']) & (fam_pcs.PC2 <= outlier_ranges['highc2']) & (fam_pcs.PC3 >= outlier_ranges['lowc3']) & (fam_pcs.PC3 <= outlier_ranges['highc3'])]
     fam_out_merge = fam_pcs.merge(fam_keep, how='left', on=['FID','IID'], indicator=True)
     fam_outliers = fam_out_merge.loc[fam_out_merge['_merge']=='left_only']
     fam_keep[['FID','IID']].to_csv(f'{out_path}.keep', sep='\t', header=True, index=False)
@@ -298,3 +306,42 @@ def report_outliers(steps, outpath):
     out_dict = {'outliers_df': outliers_df, 'outliers_path': outpath}
 
     return out_dict
+
+
+def plot_3d(labeled_df, color, symbol=None, plot_out=None, x='PC1', y='PC2', z='PC3', title=None, x_range=None, y_range=None, z_range=None):
+    '''
+    Parameters: 
+    labeled_df (Pandas dataframe): labeled ancestry dataframe
+    color (string): color of ancestry label. column name containing labels for ancestry in labeled_pcs_df
+    symbol (string): symbol of secondary label (for example, predicted vs reference ancestry). default: None
+    plot_out (string): filename to output for .png and .html plotly images
+    x (string): column name of x-dimension
+    y (string): column name of y-dimension
+    z (string): column name of z-dimension
+    title (string, optional): title of output scatterplot
+    x_range (list of floats [min, max], optional): range for x-axis
+    y_range (list of floats [min, max], optional): range for y-axis
+    z_range (list of floats [min, max], optional): range for z-axis
+
+    Returns:
+    3-D scatterplot (plotly.express.scatter_3d). If plot_out included, will write .png static image and .html interactive to plot_out filename
+        
+    '''    
+    fig = px.scatter_3d(
+        labeled_df,
+        x=x,
+        y=y,
+        z=z,
+        color=color,
+        symbol=symbol,
+        title=title,
+        color_discrete_sequence=px.colors.qualitative.Bold,
+        range_x=x_range,
+        range_y=y_range,
+        range_z=z_range,
+        hover_data=["FID", "IID", color, x, y, z]
+    )
+
+    if plot_out:
+        fig.write_image(f'{plot_out}.png', width=1980, height=1080)
+        fig.write_html(f'{plot_out}.html')
