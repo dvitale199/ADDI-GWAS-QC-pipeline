@@ -177,13 +177,22 @@ def get_outlier_ranges(pc_df, target_label):
     target_pc1 = pc_df.loc[pc_df.label==target_label,'PC1']
     target_pc2 = pc_df.loc[pc_df.label==target_label,'PC2']
     target_pc3 = pc_df.loc[pc_df.label==target_label,'PC3']
-
+    target_pc4 = pc_df.loc[pc_df.label==target_label,'PC4']
+    target_pc5 = pc_df.loc[pc_df.label==target_label,'PC5']    
+    target_pc6 = pc_df.loc[pc_df.label==target_label,'PC6']
+    
     targetlowc1 = np.mean(target_pc1) - (6*np.std(target_pc1))
     targethighc1 = np.mean(target_pc1) + (6*np.std(target_pc1))
     targetlowc2 = np.mean(target_pc2) - (6*np.std(target_pc2))
     targethighc2 = np.mean(target_pc2) + (6*np.std(target_pc2))
     targetlowc3 = np.mean(target_pc3) - (6*np.std(target_pc3))
     targethighc3 = np.mean(target_pc3) + (6*np.std(target_pc3))
+    targetlowc4 = np.mean(target_pc4) - (6*np.std(target_pc4))
+    targethighc4 = np.mean(target_pc4) + (6*np.std(target_pc4))
+    targetlowc5 = np.mean(target_pc5) - (6*np.std(target_pc5))
+    targethighc5 = np.mean(target_pc5) + (6*np.std(target_pc5))
+    targetlowc6 = np.mean(target_pc6) - (6*np.std(target_pc6))
+    targethighc6 = np.mean(target_pc6) + (6*np.std(target_pc6))
 
     out_dict = {
         'lowc1': targetlowc1,
@@ -191,7 +200,13 @@ def get_outlier_ranges(pc_df, target_label):
         'lowc2': targetlowc2,
         'highc2': targethighc2,
         'lowc3': targetlowc3,
-        'highc3': targethighc3
+        'highc3': targethighc3,
+        'lowc4': targetlowc4,
+        'highc4': targethighc4,
+        'lowc5': targetlowc5,
+        'highc5': targethighc5,
+        'lowc6': targetlowc6,
+        'highc6': targethighc6
     }
 
     return out_dict
@@ -212,7 +227,19 @@ def ancestry_prune(geno_path, ref_path, ref_labels, out_path, target_label):
     outlier_ranges = get_outlier_ranges(ref_pcs_merge, target_label)
 
     fam_pcs = fam.merge(pcs, how='left', on=['FID','IID'])
-    fam_keep = fam_pcs.loc[(fam_pcs.PC1 >= outlier_ranges['lowc1']) & (fam_pcs.PC1 <= outlier_ranges['highc1']) & (fam_pcs.PC2 >= outlier_ranges['lowc2']) & (fam_pcs.PC2 <= outlier_ranges['highc2']) & (fam_pcs.PC3 >= outlier_ranges['lowc3']) & (fam_pcs.PC3 <= outlier_ranges['highc3'])]
+    fam_keep = fam_pcs.loc[(fam_pcs.PC1 >= outlier_ranges['lowc1']) & 
+                           (fam_pcs.PC1 <= outlier_ranges['highc1']) & 
+                           (fam_pcs.PC2 >= outlier_ranges['lowc2']) & 
+                           (fam_pcs.PC2 <= outlier_ranges['highc2']) & 
+                           (fam_pcs.PC3 >= outlier_ranges['lowc3']) & 
+                           (fam_pcs.PC3 <= outlier_ranges['highc3']) &
+                           (fam_pcs.PC4 >= outlier_ranges['lowc4']) & 
+                           (fam_pcs.PC4 <= outlier_ranges['highc4']) &
+                           (fam_pcs.PC5 >= outlier_ranges['lowc5']) & 
+                           (fam_pcs.PC5 <= outlier_ranges['highc5']) &
+                           (fam_pcs.PC6 >= outlier_ranges['lowc6']) & 
+                           (fam_pcs.PC6 <= outlier_ranges['highc6'])]
+    
     fam_out_merge = fam_pcs.merge(fam_keep, how='left', on=['FID','IID'], indicator=True)
     fam_outliers = fam_out_merge.loc[fam_out_merge['_merge']=='left_only']
     fam_keep[['FID','IID']].to_csv(f'{out_path}.keep', sep='\t', header=True, index=False)
