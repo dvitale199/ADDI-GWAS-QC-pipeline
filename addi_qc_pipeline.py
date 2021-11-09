@@ -6,6 +6,8 @@ import numpy as np
 import argparse
 import plotly.express as px
 import plotly
+import plotly.io
+plotly.io.kaleido.scope.chromium_args = tuple([arg for arg in plotly.io.kaleido.scope.chromium_args if arg != "--disable-dev-shm-usage"])
 
 from qc import shell_do, het_prune, callrate_prune, merge_genos, get_outlier_ranges, ancestry_prune, king_prune, report_outliers, plot_3d
 
