@@ -213,9 +213,26 @@ def get_outlier_ranges(pc_df, target_label):
 
 def ancestry_prune(geno_path, ref_path, ref_labels, out_path, target_label):
     merge_genos(geno_path, ref_path, out_path)
+    
+    # new LD pruning addition to be tested
+    ###############
+    anc_tmp = f"{out_path}_tmp"
+    anc_tmp2 = f"{out_path}_tmp2"
+#     outliers_out = f"{out_path}.outliers"
+    
+    plink_cmd1 = f"plink --bfile {out_path} --geno 0.01 --maf 0.05 --indep-pairwise 50 5 0.5 --out {anc_tmp}"
+    plink_cmd2 = f"plink --bfile {out_path} --extract {anc_tmp}.prune.in --make-bed --out {anc_tmp2}"
+    plink_cmd3 = f"plink --bfile {anc_tmp2} --pca 10 --make-bed --out {out_path}.pca"
 
-    plink_cmd1 = f"plink --bfile {out_path} --geno 0.01 --pca 10 --make-bed --out {out_path}.pca"
-    shell_do(plink_cmd1)
+    cmds1 = [plink_cmd1, plink_cmd2, plink_cmd3]
+
+    for cmd in cmds1:
+        shell_do(cmd)    
+    ###############
+    
+    # old pca cmd pre-LD pruning TO BE REMOVED AFTER TESTING ABOVE
+#     plink_cmd3 = f"plink --bfile {out_path} --geno 0.01 --pca 10 --make-bed --out {out_path}.pca"
+#     shell_do(plink_cmd1)
 
     pcs = pd.read_csv(f'{out_path}.pca.eigenvec', sep='\s+', header=None, names=['FID','IID','PC1','PC2','PC3','PC4','PC5','PC6','PC7','PC8','PC9','PC10'], dtype={'FID':str,'IID':str})
     fam = pd.read_csv(f'{geno_path}.fam', sep='\s+', header=None, usecols=[0,1], names=['FID','IID'], dtype={'FID':str,'IID':str})
